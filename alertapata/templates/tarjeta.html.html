@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlertaPata - Perfil de {{ mascota.nombre }}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            width: 90%;
+            max-width: 400px;
+            padding: 30px;
+            text-align: center;
+            border-top: 8px solid #d90429; /* Rojo institucional */
+        }
+        .avatar-container {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%; /* Círculo perfecto */
+            border: 4px solid #d90429;
+            margin: 0 auto 20px auto;
+            overflow: hidden;
+            background-color: #e9ecef;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .avatar-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        h1 {
+            color: #d90429;
+            margin: 10px 0 5px 0;
+            font-size: 28px;
+        }
+        .badge {
+            background-color: #ef233c;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+        .info-section {
+            text-align: left;
+            background: #fff5f5;
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            border-left: 4px solid #ef233c;
+        }
+        .info-section p {
+            margin: 8px 0;
+            font-size: 15px;
+            line-height: 1.4;
+        }
+        .btn-reportar {
+            background-color: #d90429;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.2s;
+            box-shadow: 0 4px 10px rgba(217, 4, 41, 0.3);
+        }
+        .btn-reportar:hover {
+            background-color: #b30322;
+        }
+        #mensaje-exito {
+            color: #2b9348;
+            font-weight: bold;
+            margin-top: 15px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <div class="avatar-container">
+            <img src="/static/images/{{ mascota.imagen }}" onerror="this.src='https://placedog.net/500/500?id=4'" alt="Foto de {{ mascota.nombre }}">
+        </div>
+
+        <h1>{{ mascota.nombre }}</h1>
+        <span class="badge">{{ mascota.raza }}</span>
+
+        <div class="info-section">
+            <p><strong>Comportamiento:</strong> {{ mascota.comportamiento }}</p>
+            <p><strong>Salud:</strong> {{ mascota.detalles_medicos }}</p>
+            <p><strong>Contacto:</strong> {{ mascota.contacto }}</p>
+        </div>
+
+        <button class="btn-reportar" onclick="enviarUbicacion()">📍 REPORTAR MASCOTA VISTA</button>
+        <p id="mensaje-exito">¡Ubicación enviada al dueño con éxito!</p>
+    </div>
+
+    <script>
+        function enviarUbicacion() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    const datos = {
+                        latitud: position.coords.latitude,
+                        longitud: position.coords.longitude
+                    };
+
+                    fetch(`/mascota/perro1/reportar`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(datos)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('mensaje-exito').style.display = 'block';
+                        alert('Ubicación GPS compartida con el dueño.');
+                    });
+                }, function(error) {
+                    alert('Por favor, permite el acceso al GPS para reportar.');
+                });
+            } else {
+                alert('Tu navegador no soporta geolocalización.');
+            }
+        }
+    </script>
+</body>
+</html>
