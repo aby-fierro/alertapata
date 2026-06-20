@@ -56,7 +56,7 @@ async def ver_perfil():
             
             <img src="/static/dante.jpeg" alt="Foto de Dante" class="pet-img">
             <h1>Dante</h1>
-            <span class="breed">Chihuahua • Macho • Marrón con Blanco</span>
+            <span class="breed">Chihilation • Macho • Marrón con Blanco</span>
             
             <div class="info-section">
                 <p><strong>Comportamiento:</strong> Es un perro miedoso con los desconocidos. Puede llegar a ladrar para protegerse si te acercas de sorpresa, pero no es agresivo por naturaleza. Se recomienda hablarle con calma y suavidad.</p>
@@ -85,7 +85,7 @@ async def ver_perfil():
                     const lat = position.coords.latitude;
                     const lon = position.coords.longitude;
                     
-                    fetch('/mascota/perro1/reportar', {
+                    fetch('https://alertapata.onrender.com/mascota/perro1/reportar', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({latitud: lat, longitud: lon, tipo_reporte: tipoReporte, detalles: detallesTexto})
