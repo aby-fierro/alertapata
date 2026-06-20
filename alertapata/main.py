@@ -1,3 +1,4 @@
+
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -56,7 +57,7 @@ async def ver_perfil():
             
             <img src="/static/dante.jpeg" alt="Foto de Dante" class="pet-img">
             <h1>Dante</h1>
-            <span class="breed">Chihilation • Macho • Marrón con Blanco</span>
+            <span class="breed">Chihuahua • Macho • Marrón con Blanco</span>
             
             <div class="info-section">
                 <p><strong>Comportamiento:</strong> Es un perro miedoso con los desconocidos. Puede llegar a ladrar para protegerse si te acercas de sorpresa, pero no es agresivo por naturaleza. Se recomienda hablarle con calma y suavidad.</p>
@@ -85,7 +86,9 @@ async def ver_perfil():
                     const lat = position.coords.latitude;
                     const lon = position.coords.longitude;
                     
-                    fetch('https://alertapata.onrender.com/mascota/perro1/reportar', {
+                    const urlReporte = window.location.origin + '/mascota/perro1/reportar';
+                    
+                    fetch(urlReporte, {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({latitud: lat, longitud: lon, tipo_reporte: tipoReporte, detalles: detallesTexto})
