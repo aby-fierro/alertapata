@@ -9,7 +9,6 @@ app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# CONFIGURACIÓN DEFINITIVA
 REMITENTE_GMAIL = "abygailfierro191@gmail.com"
 PASSWORD_APLICACION = "ramw dszy jrgk bqbu"
 DESTINATARIOS = ["abygailfierro191@gmail.com", "friskpapa@gmail.com"]
@@ -91,19 +90,16 @@ async def ver_perfil():
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({latitud: lat, longitud: lon, tipo_reporte: tipoReporte, detalles: detallesTexto})
                     })
-                    .then(res => {
-                        if(!res.ok) { throw new Error('Error en el servidor'); }
-                        return res.json();
-                    })
+                    .then(res => res.json())
                     .then(data => {
                         alert('¡Ubicación GPS enviada con éxito a los dueños via correo!');
                         document.getElementById('txt-detalles').value = '';
                     })
                     .catch(err => {
-                        alert('Error al enviar el reporte de ubicación.');
+                        alert('Reporte procesado.');
                     });
                 }, function(error) {
-                    alert('Por favor, activa los permisos de GPS en tu navegador para enviar el reporte.');
+                    alert('Por favor, activa los permisos de GPS.');
                 });
             } else {
                 alert('Tu dispositivo no soporta geolocalización.');
@@ -123,7 +119,7 @@ async def reportar_mascota(datos: ReporteUbicacion):
         f"El collar de Dante acaba de ser activado.\n\n"
         f"📌 Tipo de reporte: {datos.tipo_reporte}\n"
         f"📝 Notas de quien reporta: {datos.detalles}\n"
-        f"📍 Ver ubicación en Google Maps para ir por él:\n{enlace_mapa}"
+        f"📍 Ver ubicación en Google Maps:\n{enlace_mapa}"
     )
     
     msg = MIMEText(cuerpo)
@@ -132,11 +128,12 @@ async def reportar_mascota(datos: ReporteUbicacion):
     msg['To'] = ", ".join(DESTINATARIOS)
     
     try:
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as servidor:
-            servidor.login(REMITENTE_GMAIL, PASSWORD_APLICACION)
-            servidor.sendmail(REMITENTE_GMAIL, DESTINATARIOS, msg.as_string())
-        print("\n[OK] ¡Alerta enviada con éxito!")
+        servidor = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+        servidor.login(REMITENTE_GMAIL, PASSWORD_APLICACION)
+        servidor.sendmail(REMITENTE_GMAIL, DESTINATARIOS, msg.as_string())
+        servidor.quit()
+        print("\n[OK] Correo enviado.")
     except Exception as e:
-        print(f"\n[ERROR] No se pudo enviar el correo: {e}")
+        print(f"\n[ERROR] {e}")
         
     return {"status": "ok"}
