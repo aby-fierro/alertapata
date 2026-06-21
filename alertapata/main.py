@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -10,8 +9,9 @@ app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-REMITENTE_GMAIL = "abyfierro88@gmail.com"
-PASSWORD_APLICACION = "jakmhenthlozumof"
+# NUEVA CONFIGURACIÓN DE TU CUENTA DE CORREO
+REMITENTE_GMAIL = "abygailfierro191@gmail.com"
+PASSWORD_APLICACION = "ramw dszy jrgk bqbu"
 DESTINATARIOS = ["abygailfierro191@gmail.com", "friskpapa@gmail.com"]
 
 class ReporteUbicacion(BaseModel):
