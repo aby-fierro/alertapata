@@ -9,7 +9,7 @@ app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# NUEVA CONFIGURACIÓN DE TU CUENTA DE CORREO
+# CONFIGURACIÓN DEFINITIVA
 REMITENTE_GMAIL = "abygailfierro191@gmail.com"
 PASSWORD_APLICACION = "ramw dszy jrgk bqbu"
 DESTINATARIOS = ["abygailfierro191@gmail.com", "friskpapa@gmail.com"]
@@ -86,23 +86,24 @@ async def ver_perfil():
                     const lat = position.coords.latitude;
                     const lon = position.coords.longitude;
                     
-                    const urlReporte = window.location.origin + '/mascota/perro1/reportar';
-                    
-                    fetch(urlReporte, {
+                    fetch('/mascota/perro1/reportar', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({latitud: lat, longitud: lon, tipo_reporte: tipoReporte, detalles: detallesTexto})
                     })
-                    .then(res => res.json())
+                    .then(res => {
+                        if(!res.ok) { throw new Error('Error en el servidor'); }
+                        return res.json();
+                    })
                     .then(data => {
                         alert('¡Ubicación GPS enviada con éxito a los dueños via correo!');
                         document.getElementById('txt-detalles').value = '';
                     })
                     .catch(err => {
-                        alert('Error al enviar la ubicación.');
+                        alert('Error al enviar el reporte de ubicación.');
                     });
                 }, function(error) {
-                    alert('Por favor, activa los permisos de GPS para reportar la ubicación.');
+                    alert('Por favor, activa los permisos de GPS en tu navegador para enviar el reporte.');
                 });
             } else {
                 alert('Tu dispositivo no soporta geolocalización.');
@@ -134,7 +135,7 @@ async def reportar_mascota(datos: ReporteUbicacion):
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as servidor:
             servidor.login(REMITENTE_GMAIL, PASSWORD_APLICACION)
             servidor.sendmail(REMITENTE_GMAIL, DESTINATARIOS, msg.as_string())
-        print("\n[OK] ¡Alerta enviada a todos los correos con éxito!")
+        print("\n[OK] ¡Alerta enviada con éxito!")
     except Exception as e:
         print(f"\n[ERROR] No se pudo enviar el correo: {e}")
         
