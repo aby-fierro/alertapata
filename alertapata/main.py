@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import smtplib
 from email.mime.text import MIMEText
+import sqlite3
 
 app = FastAPI()
 
@@ -13,6 +14,42 @@ REMITENTE_GMAIL = "abygailfierro191@gmail.com"
 PASSWORD_APLICACION = "ramw dszy jrgk bqbu"
 DESTINATARIOS = ["abygailfierro191@gmail.com", "friskpapa@gmail.com"]
 
+# --- CONFIGURACIÓN E INICIALIZACIÓN DE LA BASE DE DATOS ---
+def inicializar_bd():
+    conexion = sqlite3.connect("alertapata.db")
+    cursor = conexion.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS mascotas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT,
+            raza TEXT,
+            comportamiento TEXT,
+            salud TEXT,
+            direccion TEXT,
+            tel_principal TEXT,
+            tel_secundario TEXT
+        )
+    """)
+    
+    cursor.execute("SELECT COUNT(*) FROM mascotas")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("""
+            INSERT INTO mascotas (nombre, raza, comportamiento, salud, direccion, tel_principal, tel_secundario)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            "Dante", 
+            "Chihuahua • Macho • Marrón con Blanco",
+            "Es un perro miedoso con los desconocidos. Puede llegar a ladrar para protegerse si te acercas de sorpresa, pero no es agresivo por naturaleza. Se recomienda hablarle con calma y suavidad.",
+            "Condición estable, gordo y sano. Está castrado (esterilizado).",
+            "Anenecuilco No. 11, Col. Tierra y Libertad.",
+            "627-279-2334 (Hermana)",
+            "627-131-0481 (Aby)"
+        ))
+        conexion.commit()
+    conexion.close()
+
+inicializar_bd()
+
 class ReporteUbicacion(BaseModel):
     latitud: float
     longitud: float
@@ -21,13 +58,21 @@ class ReporteUbicacion(BaseModel):
 
 @app.get("/mascota/perro1", response_class=HTMLResponse)
 async def ver_perfil():
-    return """
+    conexion = sqlite3.connect("alertapata.db")
+    cursor = conexion.cursor()
+    cursor.execute("SELECT nombre, raza, comportamiento, salud, direccion, tel_principal, tel_secundario FROM mascotas WHERE id = 1")
+    mascota = cursor.fetchone()
+    conexion.close()
+    
+    nombre_db, raza_db, comportamiento_db, salud_db, direccion_db, tel_principal_db, tel_secundario_db = mascota
+
+    html_content = """
     <!DOCTYPE html>
     <html lang="es">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>AlertaPata - Perfil de Dante</title>
+        <title>AlertaPata - Perfil de {nombre}</title>
         <style>
             body { font-family: 'Segoe UI', sans-serif; background-color: #111; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; color: #333; }
             .card { background: white; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); width: 90%; max-width: 400px; padding: 25px; text-align: center; border-top: 8px solid #ef233c; margin: 20px 0; }
@@ -54,15 +99,15 @@ async def ver_perfil():
         <div class="card">
             <div class="status-badge">🚨 ESTADO: ¡ME PERDÍ!</div>
             
-            <img src="/static/dante.jpeg" alt="Foto de Dante" class="pet-img">
-            <h1>Dante</h1>
-            <span class="breed">Chihuahua • Macho • Marrón con Blanco</span>
+            <img src="/static/dante.jpeg" alt="Foto de {nombre}" class="pet-img">
+            <h1>{nombre}</h1>
+            <span class="breed">{raza}</span>
             
             <div class="info-section">
-                <p><strong>Comportamiento:</strong> Es un perro miedoso con los desconocidos. Puede llegar a ladrar para protegerse si te acercas de sorpresa, pero no es agresivo por naturaleza. Se recomienda hablarle con calma y suavidad.</p>
-                <p><strong>Salud:</strong> Condición estable, gordo y sano. Está castrado (esterilizado).</p>
-                <p><strong>Dirección de Casa:</strong> Anenecuilco No. 11, Col. Tierra y Libertad.</p>
-                <p><strong>Contactos de Emergencia:</strong><br>• Tel Principal: 627-279-2334 (Hermana)<br>• Tel Secundario: 627-131-0481 (Aby)</p>
+                <p><strong>Comportamiento:</strong> {comportamiento}</p>
+                <p><strong>Salud:</strong> {salud}</p>
+                <p><strong>Dirección de Casa:</strong> {direccion}</p>
+                <p><strong>Contactos de Emergencia:</strong><br>• Tel Principal: {tel_principal}<br>• Tel Secundario: {tel_secundario}</p>
             </div>
 
             <input type="text" id="txt-detalles" class="input-detalles" placeholder="¿Alguna referencia? (Ej. va corriendo, está herido, etc.)">
@@ -109,6 +154,16 @@ async def ver_perfil():
     </body>
     </html>
     """
+    
+    return html_content.format(
+        nombre=nombre_db,
+        raza=raza_db,
+        comportamiento=comportamiento_db,
+        salud=salud_db,
+        direccion=direccion_db,
+        tel_principal=tel_principal_db,
+        tel_secundario=tel_secundario_db
+    )
 
 @app.post("/mascota/perro1/reportar")
 async def reportar_mascota(datos: ReporteUbicacion):
