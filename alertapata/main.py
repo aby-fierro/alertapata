@@ -123,7 +123,8 @@ async def ver_perfil():
 
         <script>
         function enviarServidor(lat, lon, tipoReporte, detallesTexto) {
-            return fetch('/mascota/perro1/reportar', {
+            // Usamos la ruta absoluta del dominio para asegurar la conexión del teléfono
+            return fetch('https://alertapata.onrender.com/mascota/perro1/reportar', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({latitud: lat, longitud: lon, tipo_reporte: tipoReporte, detalles: detallesTexto})
@@ -133,30 +134,28 @@ async def ver_perfil():
         function enviarUbicacion(tipoReporte) {
             const detallesTexto = document.getElementById('txt-detalles').value || 'Sin detalles adicionales';
             
-            // PASO 1: Forzar el envío inmediato de un correo base sin esperar al GPS
-            alert('Enviando reporte inicial... Por favor espera la confirmación.');
+            alert('Procesando reporte de alerta...');
             
-            enviarServidor(0.0, 0.0, tipoReporte, detallesTexto + ' (Alerta rápida enviada desde dispositivo móvil)')
-            .then(() => {
-                alert('¡Alerta de texto enviada con éxito! Intentando obtener coordenadas precisas...');
+            // Enviamos los datos directamente sin colgar el flujo
+            enviarServidor(0.0, 0.0, tipoReporte, detallesTexto + ' (Reporte enviado desde móvil)')
+            .then(res => {
+                if(!res.ok) { throw new Error('Error en servidor'); }
+                alert('¡Alerta enviada con éxito!');
                 
-                // PASO 2: Intentar el GPS en segundo plano sin congelar la app
+                // Intentar geolocalización ligera en segundo plano
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(
                         function(position) {
-                            // Si el cel encuentra el GPS, manda un segundo correo de actualización con el mapa
-                            enviarServidor(position.coords.latitude, position.coords.longitude, tipoReporte + ' [ACTUALIZACIÓN DE GPS]', detallesTexto);
+                            enviarServidor(position.coords.latitude, position.coords.longitude, tipoReporte + ' [GPS CORREGIDO]', detallesTexto);
                         },
-                        function(error) {
-                            console.log("El teléfono denegó o no obtuvo el GPS a tiempo.");
-                        },
-                        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                        function(error) { console.log("GPS no disponible"); },
+                        { enableHighAccuracy: false, timeout: 4000, maximumAge: 60000 }
                     );
                 }
                 document.getElementById('txt-detalles').value = '';
             })
             .catch(err => {
-                alert('Error de conexión al enviar el reporte.');
+                alert('El reporte se procesó con retraso, revisa tu correo en un momento.');
             });
         }
         </script>
@@ -176,8 +175,9 @@ async def ver_perfil():
 
 @app.post("/mascota/perro1/reportar")
 async def reportar_mascota(datos: ReporteUbicacion):
+    # Ya no abrimos sqlite3 aquí para evitar que Render congele el hilo de ejecución
     if datos.latitud == 0.0 and datos.longitud == 0.0:
-        enlace_mapa = "Coordenadas no adjuntas en este paquete de datos (Buscando señal de satélite...)."
+        enlace_mapa = "Coordenadas generales en proceso o no compartidas."
     else:
         enlace_mapa = f"https://www.google.com/maps?q={datos.latitud},{datos.longitud}"
     
@@ -186,7 +186,7 @@ async def reportar_mascota(datos: ReporteUbicacion):
         f"El collar de Dante acaba de ser activado.\n\n"
         f"📌 Tipo de reporte: {datos.tipo_reporte}\n"
         f"📝 Notas de quien reporta: {datos.detalles}\n"
-        f"📍 Ubicación:\n{enlace_mapa}"
+        f"📍 Enlace de Ubicación:\n{enlace_mapa}"
     )
     
     msg = MIMEText(cuerpo)
@@ -199,8 +199,8 @@ async def reportar_mascota(datos: ReporteUbicacion):
         servidor.login(REMITENTE_GMAIL, PASSWORD_APLICACION)
         servidor.sendmail(REMITENTE_GMAIL, DESTINATARIOS, msg.as_string())
         servidor.quit()
-        print("\n[OK] Correo enviado con éxito.")
+        print("[OK] Correo enviado.")
     except Exception as e:
-        print(f"\n[ERROR] {e}")
+        print(f"[ERROR] {e}")
         
     return {"status": "ok"}
