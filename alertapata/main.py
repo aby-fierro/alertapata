@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -113,9 +112,9 @@ async def ver_perfil():
 
             <input type="text" id="txt-detalles" class="input-detalles" placeholder="¿Alguna referencia? (Ej. va corriendo, está herido, etc.)">
 
-            <button id="btn-directo" class="btn btn-gps-direct" onclick="enviarUbicacion('Directo (Lo tienen retenido)')">📍 ¡LO TENGO CONMIGO! (ENVIAR GPS)</button>
+            <button class="btn btn-gps-direct" onclick="enviarUbicacion('Directo (Lo tienen retenido)')">📍 ¡LO TENGO CONMIGO! (ENVIAR GPS)</button>
             
-            <button id="btn-lejano" class="btn btn-gps-far" onclick="enviarUbicacion('Lejano (Visto en la zona, huyó o no se deja atrapar)')">👀 LO VEO CERCA (REPORTAR ZONA)</button>
+            <button class="btn btn-gps-far" onclick="enviarUbicacion('Lejano (Visto en la zona, huyó o no se deja atrapar)')">👀 LO VEO CERCA (REPORTAR ZONA)</button>
             
             <a class="btn btn-whatsapp" href="https://api.whatsapp.com/send?phone=526272792334&text=Hola!%20Escaneé%20el%20collar%20de%20Dante%20y%20tengo%20información%20sobre%20él." target="_blank">💬 CONTACTAR POR WHATSAPP</a>
 
@@ -124,48 +123,41 @@ async def ver_perfil():
 
         <script>
         function enviarServidor(lat, lon, tipoReporte, detallesTexto) {
-            fetch('/mascota/perro1/reportar', {
+            return fetch('/mascota/perro1/reportar', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({latitud: lat, longitud: lon, tipo_reporte: tipoReporte, detalles: detallesTexto})
-            })
-            .then(res => res.json())
-            .then(data => {
-                alert('¡Reporte enviado con éxito a los dueños!');
-                document.getElementById('txt-detalles').value = '';
-            })
-            .catch(err => {
-                alert('Reporte enviado.');
             });
         }
 
         function enviarUbicacion(tipoReporte) {
             const detallesTexto = document.getElementById('txt-detalles').value || 'Sin detalles adicionales';
             
-            if (navigator.geolocation) {
-                // Configuramos opciones con un tiempo límite estricto de 6 segundos
-                const opcionesGps = {
-                    enableHighAccuracy: true,
-                    timeout: 6000,
-                    maximumAge: 0
-                };
-
-                navigator.geolocation.getCurrentPosition(
-                    function(position) {
-                        // Si encuentra el GPS rápido, manda la ubicación exacta
-                        enviarServidor(position.coords.latitude, position.coords.longitude, tipoReporte, detallesTexto);
-                    }, 
-                    function(error) {
-                        // Si el celular bloquea el GPS o tarda demasiado, manda el reporte con 0.0 pero NO se congela
-                        console.log("Error o timeout en GPS, enviando reporte básico");
-                        enviarServidor(0.0, 0.0, tipoReporte, detallesTexto + ' (Nota: El celular del informante no compartió coordenadas GPS exactas).');
-                    }, 
-                    opcionesGps
-                );
-            } else {
-                // Si el dispositivo viejito no tiene geolocalización, envía el texto de todas formas
-                enviarServidor(0.0, 0.0, tipoReporte, detallesTexto);
-            }
+            // PASO 1: Forzar el envío inmediato de un correo base sin esperar al GPS
+            alert('Enviando reporte inicial... Por favor espera la confirmación.');
+            
+            enviarServidor(0.0, 0.0, tipoReporte, detallesTexto + ' (Alerta rápida enviada desde dispositivo móvil)')
+            .then(() => {
+                alert('¡Alerta de texto enviada con éxito! Intentando obtener coordenadas precisas...');
+                
+                // PASO 2: Intentar el GPS en segundo plano sin congelar la app
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        function(position) {
+                            // Si el cel encuentra el GPS, manda un segundo correo de actualización con el mapa
+                            enviarServidor(position.coords.latitude, position.coords.longitude, tipoReporte + ' [ACTUALIZACIÓN DE GPS]', detallesTexto);
+                        },
+                        function(error) {
+                            console.log("El teléfono denegó o no obtuvo el GPS a tiempo.");
+                        },
+                        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                    );
+                }
+                document.getElementById('txt-detalles').value = '';
+            })
+            .catch(err => {
+                alert('Error de conexión al enviar el reporte.');
+            });
         }
         </script>
     </body>
@@ -185,9 +177,9 @@ async def ver_perfil():
 @app.post("/mascota/perro1/reportar")
 async def reportar_mascota(datos: ReporteUbicacion):
     if datos.latitud == 0.0 and datos.longitud == 0.0:
-        enlace_mapa = "No disponible (El informante rechazó los permisos de ubicación o su GPS tardó demasiado)."
+        enlace_mapa = "Coordenadas no adjuntas en este paquete de datos (Buscando señal de satélite...)."
     else:
-        enlace_mapa = f"http://maps.google.com/?q={datos.latitud},{datos.longitud}"
+        enlace_mapa = f"https://www.google.com/maps?q={datos.latitud},{datos.longitud}"
     
     asunto = f"🚨 ALERTA PATA: ¡Dante ha sido localizado!"
     cuerpo = (
