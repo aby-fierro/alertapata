@@ -66,13 +66,14 @@ async def ver_perfil():
     
     nombre_db, raza_db, comportamiento_db, salud_db, direccion_db, tel_principal_db, tel_secundario_db = mascota
 
-    html_content = """
+    # Usamos palabras simples en mayúsculas sin llaves ni % para que VSC no se confunda
+    html_template = """
     <!DOCTYPE html>
     <html lang="es">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>AlertaPata - Perfil de {nombre}</title>
+        <title>AlertaPata - Perfil de TAG_NOMBRE</title>
         <style>
             body { font-family: 'Segoe UI', sans-serif; background-color: #111; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; color: #333; }
             .card { background: white; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); width: 90%; max-width: 400px; padding: 25px; text-align: center; border-top: 8px solid #ef233c; margin: 20px 0; }
@@ -99,15 +100,15 @@ async def ver_perfil():
         <div class="card">
             <div class="status-badge">🚨 ESTADO: ¡ME PERDÍ!</div>
             
-            <img src="/static/dante.jpeg" alt="Foto de {nombre}" class="pet-img">
-            <h1>{nombre}</h1>
-            <span class="breed">{raza}</span>
+            <img src="/static/dante.jpeg" alt="Foto de TAG_NOMBRE" class="pet-img">
+            <h1>TAG_NOMBRE</h1>
+            <span class="breed">TAG_RAZA</span>
             
             <div class="info-section">
-                <p><strong>Comportamiento:</strong> {comportamiento}</p>
-                <p><strong>Salud:</strong> {salud}</p>
-                <p><strong>Dirección de Casa:</strong> {direccion}</p>
-                <p><strong>Contactos de Emergencia:</strong><br>• Tel Principal: {tel_principal}<br>• Tel Secundario: {tel_secundario}</p>
+                <p><strong>Comportamiento:</strong> TAG_COMPORTAMIENTO</p>
+                <p><strong>Salud:</strong> TAG_SALUD</p>
+                <p><strong>Dirección de Casa:</strong> TAG_DIRECCION</p>
+                <p><strong>Contactos de Emergencia:</strong><br>• Tel Principal: TAG_PRINCIPAL<br>• Tel Secundario: TAG_SECUNDARIO</p>
             </div>
 
             <input type="text" id="txt-detalles" class="input-detalles" placeholder="¿Alguna referencia? (Ej. va corriendo, está herido, etc.)">
@@ -155,15 +156,16 @@ async def ver_perfil():
     </html>
     """
     
-    return html_content.format(
-        nombre=nombre_db,
-        raza=raza_db,
-        comportamiento=comportamiento_db,
-        salud=salud_db,
-        direccion=direccion_db,
-        tel_principal=tel_principal_db,
-        tel_secundario=tel_secundario_db
-    )
+    # Inyección de texto 100% plana y segura
+    response_html = html_template.replace("TAG_NOMBRE", nombre_db)
+    response_html = response_html.replace("TAG_RAZA", raza_db)
+    response_html = response_html.replace("TAG_COMPORTAMIENTO", comportamiento_db)
+    response_html = response_html.replace("TAG_SALUD", salud_db)
+    response_html = response_html.replace("TAG_DIRECCION", direccion_db)
+    response_html = response_html.replace("TAG_PRINCIPAL", tel_principal_db)
+    response_html = response_html.replace("TAG_SECUNDARIO", tel_secundario_db)
+    
+    return response_html
 
 @app.post("/mascota/perro1/reportar")
 async def reportar_mascota(datos: ReporteUbicacion):
