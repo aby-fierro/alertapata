@@ -1,3 +1,4 @@
+
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -66,7 +67,6 @@ async def ver_perfil():
     
     nombre_db, raza_db, comportamiento_db, salud_db, direccion_db, tel_principal_db, tel_secundario_db = mascota
 
-    # Usamos palabras simples en mayúsculas sin llaves ni % para que VSC no se confunda
     html_template = """
     <!DOCTYPE html>
     <html lang="es">
@@ -113,9 +113,9 @@ async def ver_perfil():
 
             <input type="text" id="txt-detalles" class="input-detalles" placeholder="¿Alguna referencia? (Ej. va corriendo, está herido, etc.)">
 
-            <button class="btn btn-gps-direct" onclick="enviarUbicacion('Directo (Lo tienen retenido)')">📍 ¡LO TENGO CONMIGO! (ENVIAR GPS)</button>
+            <button id="btn-directo" class="btn btn-gps-direct" onclick="enviarUbicacion('Directo (Lo tienen retenido)')">📍 ¡LO TENGO CONMIGO! (ENVIAR GPS)</button>
             
-            <button class="btn btn-gps-far" onclick="enviarUbicacion('Lejano (Visto en la zona, huyó o no se deja atrapar)')">👀 LO VEO CERCA (REPORTAR ZONA)</button>
+            <button id="btn-lejano" class="btn btn-gps-far" onclick="enviarUbicacion('Lejano (Visto en la zona, huyó o no se deja atrapar)')">👀 LO VEO CERCA (REPORTAR ZONA)</button>
             
             <a class="btn btn-whatsapp" href="https://api.whatsapp.com/send?phone=526272792334&text=Hola!%20Escaneé%20el%20collar%20de%20Dante%20y%20tengo%20información%20sobre%20él." target="_blank">💬 CONTACTAR POR WHATSAPP</a>
 
@@ -123,32 +123,48 @@ async def ver_perfil():
         </div>
 
         <script>
+        function enviarServidor(lat, lon, tipoReporte, detallesTexto) {
+            fetch('/mascota/perro1/reportar', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({latitud: lat, longitud: lon, tipo_reporte: tipoReporte, detalles: detallesTexto})
+            })
+            .then(res => res.json())
+            .then(data => {
+                alert('¡Reporte enviado con éxito a los dueños!');
+                document.getElementById('txt-detalles').value = '';
+            })
+            .catch(err => {
+                alert('Reporte enviado.');
+            });
+        }
+
         function enviarUbicacion(tipoReporte) {
             const detallesTexto = document.getElementById('txt-detalles').value || 'Sin detalles adicionales';
             
             if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(function(position) {
-                    const lat = position.coords.latitude;
-                    const lon = position.coords.longitude;
-                    
-                    fetch('/mascota/perro1/reportar', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({latitud: lat, longitud: lon, tipo_reporte: tipoReporte, detalles: detallesTexto})
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                        alert('¡Ubicación GPS enviada con éxito a los dueños via correo!');
-                        document.getElementById('txt-detalles').value = '';
-                    })
-                    .catch(err => {
-                        alert('Reporte procesado.');
-                    });
-                }, function(error) {
-                    alert('Por favor, activa los permisos de GPS.');
-                });
+                // Configuramos opciones con un tiempo límite estricto de 6 segundos
+                const opcionesGps = {
+                    enableHighAccuracy: true,
+                    timeout: 6000,
+                    maximumAge: 0
+                };
+
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        // Si encuentra el GPS rápido, manda la ubicación exacta
+                        enviarServidor(position.coords.latitude, position.coords.longitude, tipoReporte, detallesTexto);
+                    }, 
+                    function(error) {
+                        // Si el celular bloquea el GPS o tarda demasiado, manda el reporte con 0.0 pero NO se congela
+                        console.log("Error o timeout en GPS, enviando reporte básico");
+                        enviarServidor(0.0, 0.0, tipoReporte, detallesTexto + ' (Nota: El celular del informante no compartió coordenadas GPS exactas).');
+                    }, 
+                    opcionesGps
+                );
             } else {
-                alert('Tu dispositivo no soporta geolocalización.');
+                // Si el dispositivo viejito no tiene geolocalización, envía el texto de todas formas
+                enviarServidor(0.0, 0.0, tipoReporte, detallesTexto);
             }
         }
         </script>
@@ -156,7 +172,6 @@ async def ver_perfil():
     </html>
     """
     
-    # Inyección de texto 100% plana y segura
     response_html = html_template.replace("TAG_NOMBRE", nombre_db)
     response_html = response_html.replace("TAG_RAZA", raza_db)
     response_html = response_html.replace("TAG_COMPORTAMIENTO", comportamiento_db)
@@ -169,14 +184,17 @@ async def ver_perfil():
 
 @app.post("/mascota/perro1/reportar")
 async def reportar_mascota(datos: ReporteUbicacion):
-    enlace_mapa = f"https://www.google.com/maps?q={datos.latitud},{datos.longitud}"
+    if datos.latitud == 0.0 and datos.longitud == 0.0:
+        enlace_mapa = "No disponible (El informante rechazó los permisos de ubicación o su GPS tardó demasiado)."
+    else:
+        enlace_mapa = f"http://maps.google.com/?q={datos.latitud},{datos.longitud}"
     
     asunto = f"🚨 ALERTA PATA: ¡Dante ha sido localizado!"
     cuerpo = (
         f"El collar de Dante acaba de ser activado.\n\n"
         f"📌 Tipo de reporte: {datos.tipo_reporte}\n"
         f"📝 Notas de quien reporta: {datos.detalles}\n"
-        f"📍 Ver ubicación en Google Maps:\n{enlace_mapa}"
+        f"📍 Ubicación:\n{enlace_mapa}"
     )
     
     msg = MIMEText(cuerpo)
@@ -189,7 +207,7 @@ async def reportar_mascota(datos: ReporteUbicacion):
         servidor.login(REMITENTE_GMAIL, PASSWORD_APLICACION)
         servidor.sendmail(REMITENTE_GMAIL, DESTINATARIOS, msg.as_string())
         servidor.quit()
-        print("\n[OK] Correo enviado.")
+        print("\n[OK] Correo enviado con éxito.")
     except Exception as e:
         print(f"\n[ERROR] {e}")
         
