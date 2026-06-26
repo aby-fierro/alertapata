@@ -1,12 +1,23 @@
+
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware  # <-- NUEVA IMPORTACIÓN
 from pydantic import BaseModel
 import smtplib
 from email.mime.text import MIMEText
 import sqlite3
 
 app = FastAPI()
+
+# --- CONFIGURACIÓN DE SEGURIDAD CORS PARA CELULARES ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Permite que cualquier celular o red envíe datos
+    allow_credentials=True,
+    allow_methods=["*"],  # Permite todos los métodos (POST, GET, etc.)
+    allow_headers=["*"],
+)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -104,7 +115,7 @@ async def ver_perfil():
             <span class="breed">TAG_RAZA</span>
             
             <div class="info-section">
-                <p><strong>Comportamiento:</strong> TAG_COMPORTAMIENTO</p>
+                <p><strong>Comportamiento:</strong> TAG_COMPONTAMIENTO</p>
                 <p><strong>Salud:</strong> TAG_SALUD</p>
                 <p><strong>Dirección de Casa:</strong> TAG_DIRECCION</p>
                 <p><strong>Contactos de Emergencia:</strong><br>• Tel Principal: TAG_PRINCIPAL<br>• Tel Secundario: TAG_SECUNDARIO</p>
@@ -123,8 +134,8 @@ async def ver_perfil():
 
         <script>
         function enviarServidor(lat, lon, tipoReporte, detallesTexto) {
-            // Usamos la ruta absoluta del dominio para asegurar la conexión del teléfono
-            return fetch('https://alertapata.onrender.com/mascota/perro1/reportar', {
+            // Usamos ruta relativa segura ahora que el backend maneja CORS correctamente
+            return fetch('/mascota/perro1/reportar', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({latitud: lat, longitud: lon, tipo_reporte: tipoReporte, detalles: detallesTexto})
@@ -134,27 +145,29 @@ async def ver_perfil():
         function enviarUbicacion(tipoReporte) {
             const detallesTexto = document.getElementById('txt-detalles').value || 'Sin detalles adicionales';
             
-            alert('Procesando reporte de alerta...');
+            // Avisamos que se está transmitiendo
+            alert('Enviando reporte de alerta a los dueños...');
             
-            // Enviamos los datos directamente sin colgar el flujo
-            enviarServidor(0.0, 0.0, tipoReporte, detallesTexto + ' (Reporte enviado desde móvil)')
+            // Disparamos directo el fetch
+            enviarServidor(0.0, 0.0, tipoReporte, detallesTexto + ' (Desde celular)')
             .then(res => {
-                if(!res.ok) { throw new Error('Error en servidor'); }
-                alert('¡Alerta enviada con éxito!');
+                if(!res.ok) { throw new Error('Error en HTTP'); }
+                alert('¡Alerta de texto enviada con éxito!');
                 
-                // Intentar geolocalización ligera en segundo plano
+                // Si el fetch base funcionó, intentamos capturar GPS secundario
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(
                         function(position) {
-                            enviarServidor(position.coords.latitude, position.coords.longitude, tipoReporte + ' [GPS CORREGIDO]', detallesTexto);
+                            enviarServidor(position.coords.latitude, position.coords.longitude, tipoReporte + ' [GPS]', detallesTexto);
                         },
-                        function(error) { console.log("GPS no disponible"); },
-                        { enableHighAccuracy: false, timeout: 4000, maximumAge: 60000 }
+                        function(e) { console.log("GPS bloqueado o apagado."); },
+                        { enableHighAccuracy: false, timeout: 3000 }
                     );
                 }
                 document.getElementById('txt-detalles').value = '';
             })
             .catch(err => {
+                // Si el fetch rebota por red, salta la alerta que viste en la captura
                 alert('El reporte se procesó con retraso, revisa tu correo en un momento.');
             });
         }
@@ -165,7 +178,7 @@ async def ver_perfil():
     
     response_html = html_template.replace("TAG_NOMBRE", nombre_db)
     response_html = response_html.replace("TAG_RAZA", raza_db)
-    response_html = response_html.replace("TAG_COMPORTAMIENTO", comportamiento_db)
+    response_html = response_html.replace("TAG_COMPONTAMIENTO", comportamiento_db)
     response_html = response_html.replace("TAG_SALUD", salud_db)
     response_html = response_html.replace("TAG_DIRECCION", direccion_db)
     response_html = response_html.replace("TAG_PRINCIPAL", tel_principal_db)
@@ -175,9 +188,8 @@ async def ver_perfil():
 
 @app.post("/mascota/perro1/reportar")
 async def reportar_mascota(datos: ReporteUbicacion):
-    # Ya no abrimos sqlite3 aquí para evitar que Render congele el hilo de ejecución
     if datos.latitud == 0.0 and datos.longitud == 0.0:
-        enlace_mapa = "Coordenadas generales en proceso o no compartidas."
+        enlace_mapa = "Coordenadas no adjuntas (Buscando señal de satélite o permisos denegados)."
     else:
         enlace_mapa = f"https://www.google.com/maps?q={datos.latitud},{datos.longitud}"
     
