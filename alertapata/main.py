@@ -24,9 +24,10 @@ REMITENTE_GMAIL = "abygailfierro191@gmail.com"
 PASSWORD_APLICACION = "ramw dszy jrgk bqbu"
 DESTINATARIOS = ["abygailfierro191@gmail.com", "friskpapa@gmail.com"]
 
-# --- CONFIGURACIÓN E INICIALIZACIÓN DE LA BASE DE DATOS ---
+# --- CONFIGURACIÓN E INICIALIZACIÓN DE LA BASE DE DATOS EN MEMORIA ---
 def inicializar_bd():
-    conexion = sqlite3.connect("alertapata.db")
+    # Usamos :memory: para que Render no truene al intentar escribir en disco
+    conexion = sqlite3.connect(":memory:", check_same_thread=False)
     cursor = conexion.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS mascotas (
@@ -68,7 +69,7 @@ class ReporteUbicacion(BaseModel):
 
 @app.get("/mascota/perro1", response_class=HTMLResponse)
 async def ver_perfil():
-    conexion = sqlite3.connect("alertapata.db")
+    conexion = sqlite3.connect(":memory:", check_same_thread=False)
     cursor = conexion.cursor()
     cursor.execute("SELECT nombre, raza, comportamiento, salud, direccion, tel_principal, tel_secundario FROM mascotas WHERE id = 1")
     mascota = cursor.fetchone()
@@ -107,4 +108,111 @@ async def ver_perfil():
     </head>
     <body>
         <div class="card">
-            <div class="status-badge">🚨 ESTADO: ¡
+            <div class="status-badge">🚨 ESTADO: ¡ME PERDÍ!</div>
+            
+            <img src="/static/dante.jpeg" alt="Foto de TAG_NOMBRE" class="pet-img">
+            <h1>TAG_NOMBRE</h1>
+            <span class="breed">TAG_RAZA</span>
+            
+            <div class="info-section">
+                <p><strong>Comportamiento:</strong> TAG_COMPORTAMIENTO</p>
+                <p><strong>Salud:</strong> TAG_SALUD</p>
+                <p><strong>Dirección de Casa:</strong> TAG_DIRECCION</p>
+                <p><strong>Contactos de Emergencia:</strong><br>• Tel Principal: TAG_PRINCIPAL<br>• Tel Secundario: TAG_SECUNDARIO</p>
+            </div>
+
+            <input type="text" id="txt-detalles" class="input-detalles" placeholder="¿Alguna referencia? (Ej. va corriendo, está herido, etc.)">
+
+            <button class="btn btn-gps-direct" onclick="enviarUbicacion('Directo (Lo tienen retenido)')">📍 ¡LO TENGO CONMIGO! (ENVIAR GPS)</button>
+            
+            <button class="btn btn-gps-far" onclick="enviarUbicacion('Lejano (Visto en la zona, huyó o no se deja atrapar)')">👀 LO VEO CERCA (REPORTAR ZONA)</button>
+            
+            <a class="btn btn-whatsapp" href="https://api.whatsapp.com/send?phone=526272792334&text=Hola!%20Escaneé%20el%20collar%20de%20Dante%20y%20tengo%20información%20sobre%20él." target="_blank">💬 CONTACTAR POR WHATSAPP</a>
+
+            <span class="fallback-text">¿El código QR falla? Reporta directo en: alertapata.onrender.com/mascota/perro1</span>
+        </div>
+
+        <script>
+        function enviarServidor(lat, lon, tipoReporte, detallesTexto) {
+            return fetch('https://alertapata.onrender.com/mascota/perro1/reportar', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({latitud: lat, longitud: lon, tipo_reporte: tipoReporte, detalles: detallesTexto})
+            });
+        }
+
+        function enviarUbicacion(tipoReporte) {
+            const detallesTexto = document.getElementById('txt-detalles').value || 'Sin detalles adicionales';
+            alert('Enviando reporte de alerta a los dueños...');
+            
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        enviarServidor(position.coords.latitude, position.coords.longitude, tipoReporte, detallesTexto)
+                        .then(res => manejarRespuesta(res));
+                    },
+                    function(e) {
+                        enviarServidor(0.0, 0.0, tipoReporte, detallesTexto + ' (GPS Bloqueado)')
+                        .then(res => manejarRespuesta(res));
+                    },
+                    { enableHighAccuracy: true, timeout: 5000 }
+                );
+            } else {
+                enviarServidor(0.0, 0.0, tipoReporte, detallesTexto + ' (Navegador sin GPS)')
+                .then(res => manejarRespuesta(res));
+            }
+        }
+
+        function manejarRespuesta(res) {
+            if(res.ok) {
+                alert('¡Alerta enviada con éxito!');
+                document.getElementById('txt-detalles').value = '';
+            } else {
+                alert('Hubo un problema al procesar el reporte.');
+            }
+        }
+        </script>
+    </body>
+    </html>
+    """
+    
+    response_html = html_template.replace("TAG_NOMBRE", nombre_db)
+    response_html = response_html.replace("TAG_RAZA", raza_db)
+    response_html = response_html.replace("TAG_COMPORTAMIENTO", comportamiento_db)
+    response_html = response_html.replace("TAG_SALUD", salud_db)
+    response_html = response_html.replace("TAG_DIRECCION", direccion_db)
+    response_html = response_html.replace("TAG_PRINCIPAL", tel_principal_db)
+    response_html = response_html.replace("TAG_SECUNDARIO", tel_secundario_db)
+    
+    return response_html
+
+@app.post("/mascota/perro1/reportar")
+async def reportar_mascota(datos: ReporteUbicacion):
+    if datos.latitud == 0.0 and datos.longitud == 0.0:
+        enlace_mapa = "Coordenadas no adjuntas (Permisos denegados o señal buscando)."
+    else:
+        enlace_mapa = f"https://www.google.com/maps?q={datos.latitud},{datos.longitud}"
+    
+    asunto = f"🚨 ALERTA PATA: ¡Dante ha sido localizado!"
+    cuerpo = (
+        f"El collar de Dante acaba de ser activado.\n\n"
+        f"📌 Tipo de reporte: {datos.tipo_reporte}\n"
+        f"📝 Notas de quien reporta: {datos.detalles}\n"
+        f"📍 Enlace de Ubicación:\n{enlace_mapa}"
+    )
+    
+    msg = MIMEText(cuerpo)
+    msg['Subject'] = asunto
+    msg['From'] = REMITENTE_GMAIL
+    msg['To'] = ", ".join(DESTINATARIOS)
+    
+    try:
+        servidor = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+        servidor.login(REMITENTE_GMAIL, PASSWORD_APLICACION)
+        servidor.sendmail(REMITENTE_GMAIL, DESTINATARIOS, msg.as_string())
+        servidor.quit()
+        print("[OK] Correo enviado.")
+        return {"status": "ok"}
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        return {"status": "error", "details": str(e)}
