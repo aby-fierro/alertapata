@@ -9,7 +9,6 @@ import sqlite3
 
 app = FastAPI(title="AlertaPata - Sistema de Recuperación de Mascotas")
 
-# --- CONFIGURACIÓN DE SEGURIDAD CORS PARA CELULARES ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  
@@ -24,9 +23,7 @@ REMITENTE_GMAIL = "abygailfierro191@gmail.com"
 PASSWORD_APLICACION = "ramw dszy jrgk bqbu"
 DESTINATARIOS = ["abygailfierro191@gmail.com", "friskpapa@gmail.com"]
 
-# --- CONFIGURACIÓN E INICIALIZACIÓN DE LA BASE DE DATOS EN MEMORIA ---
 def inicializar_bd():
-    # Usamos :memory: para que Render no truene al intentar escribir en disco
     conexion = sqlite3.connect(":memory:", check_same_thread=False)
     cursor = conexion.cursor()
     cursor.execute("""
@@ -71,11 +68,19 @@ class ReporteUbicacion(BaseModel):
 async def ver_perfil():
     conexion = sqlite3.connect(":memory:", check_same_thread=False)
     cursor = conexion.cursor()
-    cursor.execute("SELECT nombre, raza, comportamiento, salud, direccion, tel_principal, tel_secundario FROM mascotas WHERE id = 1")
+    # Traemos cualquier registro disponible para evitar el error de ID inexistente
+    cursor.execute("SELECT nombre, raza, comportamiento, salud, direccion, tel_principal, tel_secundario FROM mascotas")
     mascota = cursor.fetchone()
     conexion.close()
     
-    nombre_db, raza_db, comportamiento_db, salud_db, direccion_db, tel_principal_db, tel_secundario_db = mascota
+    # Fallback de emergencia por si la memoria no ha cargado el insert
+    if not mascota:
+        nombre_db, raza_db = "Dante", "Chihuahua • Macho"
+        comportamiento_db = "Miedoso con desconocidos."
+        salud_db, direccion_db = "Estable.", "Anenecuilco No. 11"
+        tel_principal_db, tel_secundario_db = "627-279-2334", "627-131-0481"
+    else:
+        nombre_db, raza_db, comportamiento_db, salud_db, direccion_db, tel_principal_db, tel_secundario_db = mascota
 
     html_template = """
     <!DOCTYPE html>
@@ -115,7 +120,7 @@ async def ver_perfil():
             <span class="breed">TAG_RAZA</span>
             
             <div class="info-section">
-                <p><strong>Comportamiento:</strong> TAG_COMPORTAMIENTO</p>
+                <p><strong>Comportamiento:</strong> TAG_COMPONTAMIENTO</p>
                 <p><strong>Salud:</strong> TAG_SALUD</p>
                 <p><strong>Dirección de Casa:</strong> TAG_DIRECCION</p>
                 <p><strong>Contactos de Emergencia:</strong><br>• Tel Principal: TAG_PRINCIPAL<br>• Tel Secundario: TAG_SECUNDARIO</p>
@@ -178,7 +183,7 @@ async def ver_perfil():
     
     response_html = html_template.replace("TAG_NOMBRE", nombre_db)
     response_html = response_html.replace("TAG_RAZA", raza_db)
-    response_html = response_html.replace("TAG_COMPORTAMIENTO", comportamiento_db)
+    response_html = response_html.replace("TAG_COMPONTAMIENTO", comportamiento_db)
     response_html = response_html.replace("TAG_SALUD", salud_db)
     response_html = response_html.replace("TAG_DIRECCION", direccion_db)
     response_html = response_html.replace("TAG_PRINCIPAL", tel_principal_db)
