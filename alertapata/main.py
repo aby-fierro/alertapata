@@ -1,65 +1,45 @@
-
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware  # <-- NUEVA IMPORTACIÓN
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import List, Optional
 import smtplib
 from email.mime.text import MIMEText
-import sqlite3
 
-app = FastAPI()
+app = FastAPI(title="API Unificada: AlertaPata + Laboratorio")
 
-# --- CONFIGURACIÓN DE SEGURIDAD CORS PARA CELULARES ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Permite que cualquier celular o red envíe datos
+    allow_origins=["*"],  
     allow_credentials=True,
-    allow_methods=["*"],  # Permite todos los métodos (POST, GET, etc.)
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+
 REMITENTE_GMAIL = "abygailfierro191@gmail.com"
 PASSWORD_APLICACION = "ramw dszy jrgk bqbu"
 DESTINATARIOS = ["abygailfierro191@gmail.com", "friskpapa@gmail.com"]
 
-# --- CONFIGURACIÓN E INICIALIZACIÓN DE LA BASE DE DATOS ---
-def inicializar_bd():
-    conexion = sqlite3.connect("alertapata.db")
-    cursor = conexion.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS mascotas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT,
-            raza TEXT,
-            comportamiento TEXT,
-            salud TEXT,
-            direccion TEXT,
-            tel_principal TEXT,
-            tel_secundario TEXT
-        )
-    """)
-    
-    cursor.execute("SELECT COUNT(*) FROM mascotas")
-    if cursor.fetchone()[0] == 0:
-        cursor.execute("""
-            INSERT INTO mascotas (nombre, raza, comportamiento, salud, direccion, tel_principal, tel_secundario)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (
-            "Dante", 
-            "Chihuahua • Macho • Marrón con Blanco",
-            "Es un perro miedoso con los desconocidos. Puede llegar a ladrar para protegerse si te acercas de sorpresa, pero no es agresivo por naturaleza. Se recomienda hablarle con calma y suavidad.",
-            "Condición estable, gordo y sano. Está castrado (esterilizado).",
-            "Anenecuilco No. 11, Col. Tierra y Libertad.",
-            "627-279-2334 (Hermana)",
-            "627-131-0481 (Aby)"
-        ))
-        conexion.commit()
-    conexion.close()
+MASCOTA_INFO = {
+    "nombre": "Dante",
+    "raza": "Chihuahua • Macho • Marrón con Blanco",
+    "comportamiento": "Es un perro miedoso con los desconocidos. Puede llegar a ladrar para protegerse si te acercas de sorpresa, pero no es agresivo por naturaleza. Se recomienda hablarle con calma y suavidad.",
+    "salud": "Condición estable, gordo y sano. Está castrado (esterilizado).",
+    "direccion": "Anenecuilco No. 11, Col. Tierra y Libertad.",
+    "tel_principal": "627-279-2334 (Hermana)",
+    "tel_secundario": "627-131-0481 (Aby)"
+}
 
-inicializar_bd()
+
+class Usuario(BaseModel):
+    id: Optional[int] = None
+    nombre: str
+    email: str
+    rol: str
 
 class ReporteUbicacion(BaseModel):
     latitud: float
@@ -67,16 +47,34 @@ class ReporteUbicacion(BaseModel):
     tipo_reporte: str
     detalles: str
 
+db_usuarios = [
+    {
+        "id": 1,
+        "nombre": "admin",
+        "email": "admin@clase.com",
+        "rol": "administracion"
+    }
+]
+
+@app.get("/usuarios", response_model=List[Usuario])
+def obtener_usuarios():
+    return db_usuarios
+
+@app.post("/usuarios", response_model=Usuario)
+def crear_usuario(usuario: Usuario):
+    nuevo_id = len(db_usuarios) + 1
+    usuario.id = nuevo_id
+    db_usuarios.append(usuario.dict())
+    return usuario
+
+@app.delete("/usuarios/{usuario_id}")
+def eliminar_usuario(usuario_id: int):
+    global db_usuarios
+    db_usuarios = [u for u in db_usuarios if u["id"] != usuario_id]
+    return {"mensaje": "Usuario borrado con exito"}
+
 @app.get("/mascota/perro1", response_class=HTMLResponse)
 async def ver_perfil():
-    conexion = sqlite3.connect("alertapata.db")
-    cursor = conexion.cursor()
-    cursor.execute("SELECT nombre, raza, comportamiento, salud, direccion, tel_principal, tel_secundario FROM mascotas WHERE id = 1")
-    mascota = cursor.fetchone()
-    conexion.close()
-    
-    nombre_db, raza_db, comportamiento_db, salud_db, direccion_db, tel_principal_db, tel_secundario_db = mascota
-
     html_template = """
     <!DOCTYPE html>
     <html lang="es">
@@ -109,110 +107,67 @@ async def ver_perfil():
     <body>
         <div class="card">
             <div class="status-badge">🚨 ESTADO: ¡ME PERDÍ!</div>
-            
             <img src="/static/dante.jpeg" alt="Foto de TAG_NOMBRE" class="pet-img">
             <h1>TAG_NOMBRE</h1>
             <span class="breed">TAG_RAZA</span>
-            
             <div class="info-section">
-                <p><strong>Comportamiento:</strong> TAG_COMPONTAMIENTO</p>
+                <p><strong>Comportamiento:</strong> TAG_COMPORTAMIENTO</p>
                 <p><strong>Salud:</strong> TAG_SALUD</p>
                 <p><strong>Dirección de Casa:</strong> TAG_DIRECCION</p>
                 <p><strong>Contactos de Emergencia:</strong><br>• Tel Principal: TAG_PRINCIPAL<br>• Tel Secundario: TAG_SECUNDARIO</p>
             </div>
-
             <input type="text" id="txt-detalles" class="input-detalles" placeholder="¿Alguna referencia? (Ej. va corriendo, está herido, etc.)">
-
-            <button class="btn btn-gps-direct" onclick="enviarUbicacion('Directo (Lo tienen retenido)')">📍 ¡LO TENGO CONMIGO! (ENVIAR GPS)</button>
-            
-            <button class="btn btn-gps-far" onclick="enviarUbicacion('Lejano (Visto en la zona, huyó o no se deja atrapar)')">👀 LO VEO CERCA (REPORTAR ZONA)</button>
-            
+            <button class="btn btn-gps-direct" onclick="procesarReporte('Directo (Lo tienen retenido)')">📍 ¡LO TENGO CONMIGO! (ENVIAR GPS)</button>
+            <button class="btn btn-gps-far" onclick="procesarReporte('Lejano (Visto en la zona, huyó)')">👀 LO VEO CERCA (REPORTAR ZONA)</button>
             <a class="btn btn-whatsapp" href="https://api.whatsapp.com/send?phone=526272792334&text=Hola!%20Escaneé%20el%20collar%20de%20Dante%20y%20tengo%20información%20sobre%20él." target="_blank">💬 CONTACTAR POR WHATSAPP</a>
-
-            <span class="fallback-text">¿El código QR falla? Reporta directo en: alertapata.onrender.com/mascota/perro1</span>
         </div>
-
         <script>
         function enviarServidor(lat, lon, tipoReporte, detallesTexto) {
-            // Usamos ruta relativa segura ahora que el backend maneja CORS correctamente
             return fetch('/mascota/perro1/reportar', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({latitud: lat, longitud: lon, tipo_reporte: tipoReporte, detalles: detallesTexto})
             });
         }
-
-        function enviarUbicacion(tipoReporte) {
+        function procesarReporte(tipoReporte) {
             const detallesTexto = document.getElementById('txt-detalles').value || 'Sin detalles adicionales';
-            
-            // Avisamos que se está transmitiendo
-            alert('Enviando reporte de alerta a los dueños...');
-            
-            // Disparamos directo el fetch
-            enviarServidor(0.0, 0.0, tipoReporte, detallesTexto + ' (Desde celular)')
-            .then(res => {
-                if(!res.ok) { throw new Error('Error en HTTP'); }
-                alert('¡Alerta de texto enviada con éxito!');
-                
-                // Si el fetch base funcionó, intentamos capturar GPS secundario
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(
-                        function(position) {
-                            enviarServidor(position.coords.latitude, position.coords.longitude, tipoReporte + ' [GPS]', detallesTexto);
-                        },
-                        function(e) { console.log("GPS bloqueado o apagado."); },
-                        { enableHighAccuracy: false, timeout: 3000 }
-                    );
-                }
-                document.getElementById('txt-detalles').value = '';
-            })
-            .catch(err => {
-                // Si el fetch rebota por red, salta la alerta que viste en la captura
-                alert('El reporte se procesó con retraso, revisa tu correo en un momento.');
-            });
+            alert('Enviando reporte...');
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(pos) {
+                        enviarServidor(pos.coords.latitude, pos.coords.longitude, tipoReporte, detallesTexto).then(res => manejarRespuesta(res));
+                    },
+                    function(err) {
+                        enviarServidor(0.0, 0.0, tipoReporte, detallesTexto + ' (Sin GPS)').then(res => manejarRespuesta(res));
+                    },
+                    { timeout: 3000 }
+                );
+            } else {
+                enviarServidor(0.0, 0.0, tipoReporte, detallesTexto + ' (No soportado)').then(res => manejarRespuesta(res));
+            }
+        }
+        function manejarRespuesta(res) {
+            if(res.ok) { alert('¡Alerta enviada con éxito!'); document.getElementById('txt-detalles').value = ''; }
+            else { alert('Error al procesar en el servidor.'); }
         }
         </script>
     </body>
     </html>
     """
-    
-    response_html = html_template.replace("TAG_NOMBRE", nombre_db)
-    response_html = response_html.replace("TAG_RAZA", raza_db)
-    response_html = response_html.replace("TAG_COMPONTAMIENTO", comportamiento_db)
-    response_html = response_html.replace("TAG_SALUD", salud_db)
-    response_html = response_html.replace("TAG_DIRECCION", direccion_db)
-    response_html = response_html.replace("TAG_PRINCIPAL", tel_principal_db)
-    response_html = response_html.replace("TAG_SECUNDARIO", tel_secundario_db)
-    
-    return response_html
+    return html_template.replace("TAG_NOMBRE", MASCOTA_INFO["nombre"]).replace("TAG_RAZA", MASCOTA_INFO["raza"]).replace("TAG_COMPORTAMIENTO", MASCOTA_INFO["comportamiento"]).replace("TAG_SALUD", MASCOTA_INFO["salud"]).replace("TAG_DIRECCION", MASCOTA_INFO["direccion"]).replace("TAG_PRINCIPAL", MASCOTA_INFO["tel_principal"]).replace("TAG_SECUNDARIO", MASCOTA_INFO["tel_secundario"])
 
 @app.post("/mascota/perro1/reportar")
 async def reportar_mascota(datos: ReporteUbicacion):
-    if datos.latitud == 0.0 and datos.longitud == 0.0:
-        enlace_mapa = "Coordenadas no adjuntas (Buscando señal de satélite o permisos denegados)."
-    else:
-        enlace_mapa = f"https://www.google.com/maps?q={datos.latitud},{datos.longitud}"
-    
-    asunto = f"🚨 ALERTA PATA: ¡Dante ha sido localizado!"
-    cuerpo = (
-        f"El collar de Dante acaba de ser activado.\n\n"
-        f"📌 Tipo de reporte: {datos.tipo_reporte}\n"
-        f"📝 Notas de quien reporta: {datos.detalles}\n"
-        f"📍 Enlace de Ubicación:\n{enlace_mapa}"
-    )
-    
-    msg = MIMEText(cuerpo)
-    msg['Subject'] = asunto
+    enlace_mapa = f"http://maps.google.com/?q={datos.latitud},{datos.longitud}" if datos.latitud != 0.0 else "No disponibles."
+    msg = MIMEText(f"🚨 Collar Escaneado:\n\n📌 Tipo: {datos.tipo_reporte}\n📝 Notas: {datos.detalles}\n📍 Mapa: {enlace_mapa}")
+    msg['Subject'] = "🚨 ALERTA PATA: ¡Dante localizado!"
     msg['From'] = REMITENTE_GMAIL
     msg['To'] = ", ".join(DESTINATARIOS)
-    
     try:
         servidor = smtplib.SMTP_SSL('smtp.gmail.com', 465)
         servidor.login(REMITENTE_GMAIL, PASSWORD_APLICACION)
         servidor.sendmail(REMITENTE_GMAIL, DESTINATARIOS, msg.as_string())
         servidor.quit()
-        print("[OK] Correo enviado.")
+        return {"status": "ok"}
     except Exception as e:
-        print(f"[ERROR] {e}")
-        
-    return {"status": "ok"}
+        return {"status": "error", "details": str(e)}
