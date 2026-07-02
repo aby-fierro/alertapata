@@ -197,7 +197,7 @@ async def ver_perfil(mascota_slug: str, db: Session = Depends(get_db)):
                     }},
                     {{ enableHighAccuracy: true, timeout: 5000 }}
                 );
-            } else {{
+            }} else {{
                 enviarServidor(0.0, 0.0, tipoReporte, detallesTexto + ' (Navegador sin GPS)')
                 .then(res => manejarRespuesta(res));
             }}
@@ -223,7 +223,6 @@ async def reportar_mascota(mascota_slug: str, datos: ReporteUbicacion, db: Sessi
     if not mascota:
         raise HTTPException(status_code=404, detail="Mascota no registrada")
     
-    # 1. Guardar el reporte de forma permanente en la base de datos local de SQLite
     nuevo_reporte = Reporte(
         mascota_id=mascota.id,
         latitud=datos.latitud,
@@ -234,13 +233,11 @@ async def reportar_mascota(mascota_slug: str, datos: ReporteUbicacion, db: Sessi
     db.add(nuevo_reporte)
     db.commit()
     
-    # 2. Generar enlace de Google Maps
     if datos.latitud == 0.0 and datos.longitud == 0.0:
         enlace_mapa = "Coordenadas no adjuntas (Permisos denegados o señal buscando)."
     else:
         enlace_mapa = f"https://www.google.com/maps?q={datos.latitud},{datos.longitud}"
     
-    # 3. Estructurar y enviar correo electrónico de emergencia
     asunto = f"🚨 ALERTA PATA: ¡{mascota.nombre} ha sido localizado!"
     cuerpo = (
         f"El collar de {mascota.nombre} acaba de ser escaneado e interactuado.\n\n"
